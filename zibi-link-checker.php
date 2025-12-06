@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Zibi Link Checker
- * Plugin URI:        https://github.com/your-repo/zibi-link-checker
+ * Plugin URI:        https://github.com/chulingera2025/zibi-blc
  * Description:       自用专为 Zibi 主题设计的付费资源链接有效性检测插件。支持后台批量检测、自动定时巡检及前台状态展示。
  * Version:           2.5.0
  * Requires at least: 6.0
