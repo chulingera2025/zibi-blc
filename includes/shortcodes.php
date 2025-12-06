@@ -51,28 +51,56 @@ function zibi_blc_shortcode_list( $atts ) {
 		return '<div class="zibi-alert error">请先在后台配置资源链接 Meta Key。</div>';
 	}
 
+	// 获取搜索关键词
+	$search_query = isset( $_GET['zibi_search'] ) ? sanitize_text_field( $_GET['zibi_search'] ) : '';
+
 	// 查询包含该 Meta Key 的文章
 	$args = array(
 		'post_type'      => 'post',
 		'posts_per_page' => $atts['posts_per_page'],
 		'paged'          => $paged,
+		's'              => $search_query, // 搜索功能
 		'meta_query'     => array(
+			'relation' => 'AND',
 			array(
 				'key'     => $meta_key,
 				'compare' => 'EXISTS',
 			),
+			// 确保有状态字段，以便排序 (可选，如果想把未检测的放最后)
+			array(
+				'key'     => '_zibi_link_status',
+				'compare' => 'EXISTS',
+			),
 		),
+		// 排序：失效的 (invalid) 在前，有效的 (valid) 在后。
+		// 字母顺序：invalid < valid，所以用 ASC。
+		'orderby'        => 'meta_value',
+		'meta_key'       => '_zibi_link_status',
+		'order'          => 'ASC',
 	);
 
 	$query = new WP_Query( $args );
 
-	if ( ! $query->have_posts() ) {
-		return '<div class="zibi-alert info">暂无包含资源链接的文章。</div>';
-	}
-
 	ob_start();
 	?>
 	<div class="zibi-link-list-container">
+		<!-- 搜索框 -->
+		<form method="get" action="" class="zibi-search-form" style="margin-bottom: 20px;">
+			<input type="text" name="zibi_search" placeholder="搜索文章标题..." value="<?php echo esc_attr( $search_query ); ?>" style="padding: 8px; width: 200px;">
+			<button type="submit" class="button" style="padding: 8px 15px; cursor: pointer;">搜索</button>
+			<?php if ( $search_query ) : ?>
+				<a href="<?php echo remove_query_arg( 'zibi_search' ); ?>" style="margin-left: 10px;">清除搜索</a>
+			<?php endif; ?>
+		</form>
+
+	<?php
+	if ( ! $query->have_posts() ) {
+		echo '<div class="zibi-alert info">没有找到相关文章。</div></div>';
+		wp_reset_postdata();
+		return ob_get_clean();
+	}
+	?>
+
 		<table class="zibi-link-table">
 			<thead>
 				<tr>
