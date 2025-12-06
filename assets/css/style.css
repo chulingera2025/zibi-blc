@@ -68,6 +68,52 @@
     background-color: #dc3545;
 }
 
+/* Search Form Styling */
+.zibi-list-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    gap: 15px;
+}
+
+.zibi-search-form {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.zibi-list-summary {
+    display: flex;
+    gap: 15px;
+    font-size: 14px;
+    color: #606266;
+}
+
+.zibi-list-summary .summary-item {
+    background: #f5f7fa;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #e4e7ed;
+}
+
+.zibi-list-summary .summary-item strong {
+    font-weight: bold;
+    margin: 0 2px;
+}
+
+.zibi-list-summary .summary-item.invalid {
+    background: #fef0f0;
+    color: #f56c6c;
+    border-color: #fde2e2;
+}
+
+.zibi-list-summary .summary-item.invalid strong {
+    font-size: 1.1em;
+}
+
 .zibi-pagination {
     margin-top: 20px;
     text-align: center;

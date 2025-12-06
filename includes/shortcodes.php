@@ -81,17 +81,52 @@ function zibi_blc_shortcode_list( $atts ) {
 
 	$query = new WP_Query( $args );
 
+	// 统计全站资源总数
+	$count_args = array(
+		'post_type'      => 'post',
+		'post_status'    => 'publish',
+		'fields'         => 'ids',
+		'posts_per_page' => -1,
+		'meta_query'     => array(
+			array(
+				'key'     => $meta_key,
+				'compare' => 'EXISTS',
+			),
+		),
+	);
+	$total_query = new WP_Query( $count_args );
+	$total_count = $total_query->post_count;
+
+	// 统计失效资源数
+	$invalid_args = $count_args;
+	$invalid_args['meta_query'][] = array(
+		'key'   => '_zibi_link_status',
+		'value' => 'invalid',
+	);
+	$invalid_query = new WP_Query( $invalid_args );
+	$invalid_count = $invalid_query->post_count;
+
 	ob_start();
 	?>
 	<div class="zibi-link-list-container">
-		<!-- 搜索框 -->
-		<form method="get" action="" class="zibi-search-form" style="margin-bottom: 20px;">
-			<input type="text" name="zibi_search" placeholder="搜索文章标题..." value="<?php echo esc_attr( $search_query ); ?>" style="padding: 8px; width: 200px;">
-			<button type="submit" class="button" style="padding: 8px 15px; cursor: pointer;">搜索</button>
-			<?php if ( $search_query ) : ?>
-				<a href="<?php echo remove_query_arg( 'zibi_search' ); ?>" style="margin-left: 10px;">清除搜索</a>
-			<?php endif; ?>
-		</form>
+		<div class="zibi-list-toolbar">
+			<!-- 搜索框 -->
+			<form method="get" action="" class="zibi-search-form">
+				<div class="zibi-search-wrapper">
+					<input type="text" name="zibi_search" class="zibi-search-input" placeholder="搜索文章标题..." value="<?php echo esc_attr( $search_query ); ?>">
+					<button type="submit" class="zibi-search-btn"><i class="fa fa-search"></i> 搜索</button>
+				</div>
+				<?php if ( $search_query ) : ?>
+					<a href="<?php echo esc_url( remove_query_arg( 'zibi_search' ) ); ?>" class="zibi-search-clear"><i class="fa fa-times-circle"></i> 清除搜索</a>
+				<?php endif; ?>
+			</form>
+
+			<!-- 汇总信息 -->
+			<div class="zibi-list-summary">
+				<span class="summary-item">共 <strong><?php echo intval( $total_count ); ?></strong> 个资源</span>
+				<span class="summary-item invalid"><strong><?php echo intval( $invalid_count ); ?></strong> 个失效</span>
+			</div>
+		</div>
 
 	<?php
 	if ( ! $query->have_posts() ) {
