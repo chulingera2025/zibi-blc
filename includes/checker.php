@@ -71,10 +71,20 @@ function zibi_blc_get_target_link( $post_id ) {
  * @return array 包含 status (valid/invalid) 和 code (HTTP 状态码) 的数组。
  */
 function zibi_blc_perform_check( $url ) {
-	$response = wp_remote_head( $url, array(
-		'timeout' => 5,
+	$is_baidu = ( strpos( $url, 'pan.baidu.com' ) !== false );
+
+	// 百度网盘需要 GET 请求获取内容进行关键词匹配
+	// 普通链接使用 HEAD 请求以节省资源
+	$method = $is_baidu ? 'GET' : 'HEAD';
+	
+	$args = array(
+		'timeout'     => 10, // 百度网盘响应可能较慢，增加超时
 		'redirection' => 5,
-	) );
+		'method'      => $method,
+		'user-agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // 模拟浏览器 UA
+	);
+
+	$response = wp_remote_request( $url, $args );
 
 	$status = 'invalid';
 	$code = 'error';
@@ -82,8 +92,33 @@ function zibi_blc_perform_check( $url ) {
 	if ( ! is_wp_error( $response ) ) {
 		$response_code = wp_remote_retrieve_response_code( $response );
 		$code = $response_code;
+
+		// 基础状态码判断
 		if ( $response_code >= 200 && $response_code < 400 ) {
 			$status = 'valid';
+
+			// 百度网盘特殊检测逻辑
+			if ( $is_baidu ) {
+				$body = wp_remote_retrieve_body( $response );
+				
+				// 常见的百度网盘失效关键词
+				$invalid_keywords = array(
+					'分享的文件已经被取消了',
+					'链接不存在',
+					'百度网盘-链接不存在',
+					'啊哦，你来晚了',
+					'该文件已过期',
+					'此链接分享内容可能因为涉及侵权'
+				);
+
+				foreach ( $invalid_keywords as $keyword ) {
+					if ( mb_strpos( $body, $keyword ) !== false ) {
+						$status = 'invalid';
+						$code = 'content_invalid'; // 自定义状态码，表示内容失效
+						break;
+					}
+				}
+			}
 		}
 	}
 
