@@ -31,10 +31,18 @@ function zibi_blc_update_cron_schedule( $old_value, $value, $option ) {
  * Cron 任务处理函数：批量检测链接 (自动巡检)。
  * 采用滚动更新策略：每次只检测最久未检测的一批。
  */
+/**
+ * Cron 任务处理函数：批量检测链接 (自动巡检)。
+ * 采用智能时间片策略：在 20 秒内尽可能多地检测，防止超时。
+ */
 function zibi_blc_process_batch() {
 	$options = get_option( 'zibi_blc_settings' );
 	$meta_key = isset( $options['zibi_link_meta_key'] ) ? $options['zibi_link_meta_key'] : '';
-	$batch_size = isset( $options['cron_batch_size'] ) ? intval( $options['cron_batch_size'] ) : 50;
+	
+	// 每次查询较多文章，但在循环中控制时间
+	$batch_size = 200; 
+	$time_limit = 20; // 秒
+	$start_time = time();
 
 	if ( empty( $meta_key ) ) {
 		return;
@@ -60,6 +68,11 @@ function zibi_blc_process_batch() {
 
 	if ( $query->have_posts() ) {
 		while ( $query->have_posts() ) {
+			// 检查是否超时
+			if ( ( time() - $start_time ) >= $time_limit ) {
+				break; // 时间耗尽，停止本轮检测
+			}
+
 			$query->the_post();
 			$post_id = get_the_ID();
 			

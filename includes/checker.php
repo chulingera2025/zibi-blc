@@ -71,52 +71,7 @@ function zibi_blc_perform_check( $url ) {
 	);
 }
 
-/**
- * 处理 AJAX 请求以检测链接并更新数据库 (单个)。
- */
-function zibi_blc_admin_check_link() {
-	// 验证 Nonce 安全性
-	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
-		wp_send_json_error( '安全验证失败' );
-	}
 
-	// 获取文章 ID
-	$post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
-	if ( ! $post_id ) {
-		wp_send_json_error( '无效的文章 ID' );
-	}
-
-	// 检查权限
-	if ( ! current_user_can( 'edit_posts' ) ) {
-		wp_send_json_error( '无权执行此操作' );
-	}
-
-	// 使用新函数获取链接
-	$link = zibi_blc_get_target_link( $post_id );
-
-	if ( empty( $link ) ) {
-		wp_send_json_error( '未找到百度网盘资源链接' );
-	}
-
-	// 使用核心函数执行检测
-	$result = zibi_blc_perform_check( $link );
-
-	// 更新文章 Meta
-	update_post_meta( $post_id, '_zibi_link_status', $result['status'] );
-	update_post_meta( $post_id, '_zibi_link_code', $result['code'] );
-	update_post_meta( $post_id, '_zibi_link_last_checked', time() );
-
-	// 返回结果给前端更新 UI
-	wp_send_json_success( array(
-		'status' => $result['status'],
-		'code' => $result['code'],
-		'last_checked' => wp_date( 'Y-m-d H:i', time() ),
-		'message' => ( $result['status'] === 'valid' ) ? '有效' : '失效 (' . $result['code'] . ')'
-	) );
-
-	wp_die();
-}
-add_action( 'wp_ajax_zibi_blc_admin_check_link', 'zibi_blc_admin_check_link' );
 
 /**
  * 文章发布/更新时自动检测链接。
@@ -143,6 +98,11 @@ function zibi_blc_auto_check_on_publish( $post_id ) {
 	// 获取资源链接
 	$link = zibi_blc_get_target_link( $post_id );
 
+	// 如果数据库中没有，尝试从 $_POST 中获取 (针对新发布文章，Meta 可能尚未写入数据库)
+	if ( empty( $link ) && isset( $_POST['posts_zibpay'] ) ) {
+		$link = zibi_blc_parse_zibpay_meta( $_POST['posts_zibpay'] );
+	}
+
 	// 如果没有链接，直接忽略
 	if ( empty( $link ) ) {
 		return;
@@ -156,4 +116,4 @@ function zibi_blc_auto_check_on_publish( $post_id ) {
 	update_post_meta( $post_id, '_zibi_link_code', $result['code'] );
 	update_post_meta( $post_id, '_zibi_link_last_checked', time() );
 }
-add_action( 'save_post', 'zibi_blc_auto_check_on_publish', 20 );
+add_action( 'save_post', 'zibi_blc_auto_check_on_publish', 999 );

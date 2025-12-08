@@ -75,7 +75,6 @@ function zibi_blc_status_page() {
 					<th scope="col" class="manage-column column-link">资源链接</th>
 					<th scope="col" class="manage-column column-status">状态</th>
 					<th scope="col" class="manage-column column-date">最后检测</th>
-					<th scope="col" class="manage-column column-action">操作</th>
 				</tr>
 			</thead>
 			<tbody id="the-list">
@@ -108,9 +107,6 @@ function zibi_blc_status_page() {
 						</td>
 						<td class="date column-date">
 							<span class="zibi-date-display"><?php echo $last_checked ? wp_date( 'Y-m-d H:i', $last_checked ) : '-'; ?></span>
-						</td>
-						<td class="action column-action">
-							<button type="button" class="button zibi-check-btn" data-id="<?php echo $post_id; ?>">检测</button>
 						</td>
 					</tr>
 					<?php endwhile; ?>

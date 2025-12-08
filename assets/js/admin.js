@@ -5,15 +5,6 @@ jQuery(document).ready(function ($) {
         pollStatus();
     }
 
-    // 单个检测
-    $('.zibi-check-btn').on('click', function () {
-        var $btn = $(this);
-        var postId = $btn.data('id');
-        var $row = $btn.closest('tr');
-
-        checkLink(postId, $row, $btn);
-    });
-
     // 启动后台全站检测
     $('#zibi-blc-check-all-site').on('click', function () {
         if (!confirm('确定要启动后台全站检测吗？任务将在后台运行。')) {
@@ -81,46 +72,6 @@ jQuery(document).ready(function ($) {
             error: function () {
                 // 网络错误，稍后重试
                 setTimeout(pollStatus, 5000);
-            }
-        });
-    }
-
-    function checkLink(postId, $row, $btn, callback) {
-        $btn.prop('disabled', true).text('检测中...');
-        $row.find('.zibi-status-display').html('<span class="dashicons dashicons-update spin"></span> 检测中...');
-
-        $.ajax({
-            url: zibi_blc_vars.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'zibi_blc_admin_check_link',
-                post_id: postId,
-                nonce: zibi_blc_vars.nonce
-            },
-            success: function (response) {
-                if (response.success) {
-                    var data = response.data;
-                    var color = (data.status === 'valid') ? 'green' : 'red';
-                    var icon = (data.status === 'valid') ? 'yes' : 'no';
-
-                    $row.find('.zibi-status-display').html('<span class="dashicons dashicons-' + icon + '" style="color:' + color + '"></span> ' + data.message);
-                    $row.find('.zibi-date-display').text(data.last_checked);
-
-                    if (data.status === 'invalid') {
-                        $row.addClass('zibi-invalid-row');
-                    } else {
-                        $row.removeClass('zibi-invalid-row');
-                    }
-                } else {
-                    $row.find('.zibi-status-display').text('错误: ' + response.data);
-                }
-            },
-            error: function () {
-                $row.find('.zibi-status-display').text('请求失败');
-            },
-            complete: function () {
-                $btn.prop('disabled', false).text('检测');
-                if (callback) callback();
             }
         });
     }
