@@ -11,9 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * 执行单个 URL 检测的核心函数。
  * 
  * @param string $url 要检测的 URL。
+ * @param int $max_retries 最大重试次数 (默认 2 次，共检测 3 次)。
  * @return array 包含 status (valid/invalid) 和 code (HTTP 状态码) 的数组。
  */
-function zibi_blc_perform_check( $url ) {
+function zibi_blc_perform_check( $url, $max_retries = 2 ) {
 	$is_baidu = ( strpos( $url, 'pan.baidu.com' ) !== false );
 
 	// 百度网盘需要 GET 请求获取内容进行关键词匹配
@@ -27,42 +28,57 @@ function zibi_blc_perform_check( $url ) {
 		'user-agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // 模拟浏览器 UA
 	);
 
-	$response = wp_remote_request( $url, $args );
-
+	$attempt = 0;
 	$status = 'invalid';
 	$code = 'error';
 
-	if ( ! is_wp_error( $response ) ) {
-		$response_code = wp_remote_retrieve_response_code( $response );
-		$code = $response_code;
+	while ( $attempt <= $max_retries ) {
+		$response = wp_remote_request( $url, $args );
 
-		// 基础状态码判断
-		if ( $response_code >= 200 && $response_code < 400 ) {
-			$status = 'valid';
+		if ( ! is_wp_error( $response ) ) {
+			$response_code = wp_remote_retrieve_response_code( $response );
+			$code = $response_code;
 
-			// 百度网盘特殊检测逻辑
-			if ( $is_baidu ) {
-				$body = wp_remote_retrieve_body( $response );
-				
-				// 常见的百度网盘失效关键词
-				$invalid_keywords = array(
-					'分享的文件已经被取消了',
-					'链接不存在',
-					'百度网盘-链接不存在',
-					'啊哦，你来晚了',
-					'该文件已过期',
-					'此链接分享内容可能因为涉及侵权'
-				);
+			// 基础状态码判断
+			if ( $response_code >= 200 && $response_code < 400 ) {
+				$status = 'valid';
 
-				foreach ( $invalid_keywords as $keyword ) {
-					if ( mb_strpos( $body, $keyword ) !== false ) {
-						$status = 'invalid';
-						$code = 'content_invalid'; // 自定义状态码，表示内容失效
-						break;
+				// 百度网盘特殊检测逻辑
+				if ( $is_baidu ) {
+					$body = wp_remote_retrieve_body( $response );
+					
+					// 常见的百度网盘失效关键词
+					$invalid_keywords = array(
+						'分享的文件已经被取消了',
+						'链接不存在',
+						'百度网盘-链接不存在',
+						'啊哦，你来晚了',
+						'该文件已过期',
+						'此链接分享内容可能因为涉及侵权'
+					);
+
+					foreach ( $invalid_keywords as $keyword ) {
+						if ( mb_strpos( $body, $keyword ) !== false ) {
+							$status = 'invalid';
+							$code = 'content_invalid'; // 自定义状态码，表示内容失效
+							break;
+						}
 					}
 				}
 			}
 		}
+
+		// 如果检测成功 (valid)，直接跳出循环
+		if ( $status === 'valid' ) {
+			break;
+		}
+
+		// 如果失败且还有重试机会，等待 1 秒后重试
+		if ( $attempt < $max_retries ) {
+			sleep( 1 );
+		}
+
+		$attempt++;
 	}
 
 	return array(

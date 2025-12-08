@@ -73,6 +73,14 @@ function zibi_blc_settings_init() {
 		'zibi_blc_plugin',
 		'zibi_blc_cron_section'
 	);
+
+	add_settings_field(
+		'cron_interval',
+		'检测间隔 (秒)',
+		'zibi_blc_cron_interval_render',
+		'zibi_blc_plugin',
+		'zibi_blc_cron_section'
+	);
 }
 add_action( 'admin_init', 'zibi_blc_settings_init' );
 
@@ -84,7 +92,7 @@ function zibi_blc_settings_section_callback() {
 }
 
 function zibi_blc_cron_section_callback() {
-	echo '配置后台自动检测任务。建议根据服务器性能调整单次检测数量。';
+	echo '配置后台自动检测任务。建议根据服务器性能调整单次检测数量和间隔。';
 }
 
 /**
@@ -133,8 +141,21 @@ function zibi_blc_cron_batch_size_render() {
 	$options = get_option( 'zibi_blc_settings' );
 	$value = isset( $options['cron_batch_size'] ) ? $options['cron_batch_size'] : 50;
 	?>
-	<input type='number' name='zibi_blc_settings[cron_batch_size]' value='<?php echo esc_attr( $value ); ?>' min="1" max="100" class="small-text">
-	<p class="description">每次任务运行时检测的链接数量。建议 20-50。</p>
+	<input type='number' name='zibi_blc_settings[cron_batch_size]' value='<?php echo esc_attr( $value ); ?>' min="1" max="100" class="small-text" id="zibi_cron_batch_size">
+	<p class="description">每次任务运行时检测的链接数量。建议 50。</p>
+	<p id="zibi-daily-calc" class="description" style="color:#2271b1; font-weight:bold; margin-top:5px;"></p>
+	<?php
+}
+
+/**
+ * 渲染检测间隔输入框。
+ */
+function zibi_blc_cron_interval_render() {
+	$options = get_option( 'zibi_blc_settings' );
+	$value = isset( $options['cron_interval'] ) ? $options['cron_interval'] : 1;
+	?>
+	<input type='number' name='zibi_blc_settings[cron_interval]' value='<?php echo esc_attr( $value ); ?>' min="0" max="10" class="small-text">
+	<p class="description">每个链接检测后的等待时间（秒）。用于限流，防止请求过快。</p>
 	<?php
 }
 
@@ -154,6 +175,9 @@ function zibi_blc_sanitize_settings( $input ) {
 	}
 	if( isset( $input['cron_batch_size'] ) ) {
 		$new_input['cron_batch_size'] = absint( $input['cron_batch_size'] );
+	}
+	if( isset( $input['cron_interval'] ) ) {
+		$new_input['cron_interval'] = absint( $input['cron_interval'] );
 	}
 	
 	// 触发 Cron 调度更新
@@ -178,6 +202,29 @@ function zibi_blc_options_page() {
 			submit_button();
 			?>
 		</form>
+
+		<script>
+		jQuery(document).ready(function($) {
+			function calculateDaily() {
+				var freq = $('select[name="zibi_blc_settings[cron_frequency]"]').val();
+				var batch = parseInt($('#zibi_cron_batch_size').val()) || 0;
+				var timesPerDay = 0;
+
+				if (freq === 'hourly') timesPerDay = 24;
+				else if (freq === 'twicedaily') timesPerDay = 2;
+				else if (freq === 'daily') timesPerDay = 1;
+
+				var total = timesPerDay * batch;
+				$('#zibi-daily-calc').text('当前配置下，每天约可自动检测 ' + total + ' 个链接。');
+			}
+
+			// 绑定事件
+			$('select[name="zibi_blc_settings[cron_frequency]"], #zibi_cron_batch_size').on('change keyup', calculateDaily);
+			
+			// 初始化
+			calculateDaily();
+		});
+		</script>
 
 		<hr>
 
