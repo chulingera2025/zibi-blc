@@ -1,6 +1,6 @@
 <?php
 /**
- * 处理 WP-Cron 定时任务。
+ * 处理后台任务与自动巡检逻辑。
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -80,6 +80,95 @@ function zibi_blc_process_batch() {
 add_action( 'zibi_blc_cron_event', 'zibi_blc_process_batch' );
 
 /**
+ * 启动后台全站检测 (AJAX)。
+ */
+function zibi_blc_start_background_check() {
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+
+	if ( get_transient( 'zibi_blc_background_processing' ) ) {
+		wp_send_json_error( '检测任务已在运行中' );
+	}
+
+	// 获取总数
+	$options = get_option( 'zibi_blc_settings' );
+	$meta_key = isset( $options['zibi_link_meta_key'] ) ? $options['zibi_link_meta_key'] : '';
+
+	if ( empty( $meta_key ) ) {
+		wp_send_json_error( '未配置 Meta Key' );
+	}
+
+	$args = array(
+		'post_type'      => 'post',
+		'posts_per_page' => -1,
+		'post_status'    => 'publish',
+		'meta_query'     => array(
+			array(
+				'key'     => $meta_key,
+				'compare' => 'EXISTS',
+			),
+		),
+		'fields' => 'ids',
+	);
+
+	$query = new WP_Query( $args );
+	$total = $query->post_count;
+
+	if ( $total == 0 ) {
+		wp_send_json_error( '没有找到需要检测的文章' );
+	}
+
+	// 初始化任务数据
+	$process_data = array(
+		'paged' => 1,
+		'total' => $total,
+		'processed' => 0,
+		'start_time' => time(),
+	);
+	set_transient( 'zibi_blc_background_processing', $process_data, HOUR_IN_SECONDS );
+
+	// 调度立即执行
+	wp_schedule_single_event( time(), 'zibi_blc_background_process_event' );
+
+	wp_send_json_success( array( 'message' => '后台任务已启动' ) );
+	wp_die();
+}
+add_action( 'wp_ajax_zibi_blc_start_background_check', 'zibi_blc_start_background_check' );
+
+/**
+ * 获取后台任务状态 (AJAX)。
+ */
+function zibi_blc_get_background_status() {
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+
+	$process_data = get_transient( 'zibi_blc_background_processing' );
+
+	if ( ! $process_data ) {
+		wp_send_json_success( array( 'running' => false ) );
+	} else {
+		wp_send_json_success( array(
+			'running' => true,
+			'processed' => $process_data['processed'],
+			'total' => $process_data['total'],
+		) );
+	}
+
+	wp_die();
+}
+add_action( 'wp_ajax_zibi_blc_get_background_status', 'zibi_blc_get_background_status' );
+
+/**
  * 后台手动检测的处理函数。
  * 由 zibi_blc_background_process_event 触发。
  */
@@ -131,7 +220,7 @@ function zibi_blc_handle_background_process() {
 			}
 			$processed++;
 
-			// 实时更新进度 (每检测一个就更新一次 transient，以便前端能看到 +1 的效果)
+			// 实时更新进度 (每检测一个就更新一次 transient)
 			$process_data['processed'] = $processed;
 			set_transient( 'zibi_blc_background_processing', $process_data, HOUR_IN_SECONDS );
 		}
@@ -144,8 +233,6 @@ function zibi_blc_handle_background_process() {
 
 	// 检查是否完成
 	if ( $processed < $total && $query->have_posts() ) {
-		// 还有下一页，调度下一次立即执行 (或者几秒后)
-		// 使用 wp_schedule_single_event 链式调用
 		wp_schedule_single_event( time() + 5, 'zibi_blc_background_process_event' );
 	} else {
 		// 完成，删除 transient
