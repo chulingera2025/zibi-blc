@@ -368,3 +368,40 @@ function zibi_blc_run_import() {
 	wp_send_json_success( array( 'updated_count' => $updated_count ) );
 }
 add_action( 'wp_ajax_zibi_blc_run_import', 'zibi_blc_run_import' );
+
+/**
+ * 搜索文章 (AJAX，用于手动匹配)。
+ */
+function zibi_blc_search_posts() {
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+
+	$keyword = isset( $_POST['keyword'] ) ? trim( $_POST['keyword'] ) : '';
+	
+	if ( empty( $keyword ) ) {
+		wp_send_json_success( array() );
+	}
+
+	$posts = get_posts( array(
+		'post_type' => 'post',
+		'post_status' => 'publish',
+		's' => $keyword,
+		'posts_per_page' => 20,
+		'orderby' => 'relevance'
+	) );
+
+	$results = array();
+	foreach ( $posts as $post ) {
+		$results[] = array(
+			'id' => $post->ID,
+			'title' => $post->post_title
+		);
+	}
+
+	wp_send_json_success( $results );
+}
+add_action( 'wp_ajax_zibi_blc_search_posts', 'zibi_blc_search_posts' );

@@ -144,6 +144,10 @@ function zibi_blc_import_page() {
 					statusClass = 'color:green;font-weight:bold;';
 					statusText = '已匹配 (ID:' + item.post_id + ')';
 					validCount++;
+				} else if (item.match_level === 'manual') {
+					statusClass = 'color:blue;font-weight:bold;';
+					statusText = '手动匹配 (ID:' + item.post_id + ')';
+					validCount++;
 				} else if (item.match_level === 'same') {
 					statusClass = 'color:#666;font-style:italic;';
 					statusText = '链接一致，无需更新';
@@ -153,12 +157,18 @@ function zibi_blc_import_page() {
 					statusText = '未找到';
 				}
 
-				html += '<tr>';
+				html += '<tr data-index="' + list.indexOf(item) + '">';
 				html += '<td>' + item.csv_title + '</td>';
 				html += '<td>' + (item.post_title || '-') + '</td>';
 				html += '<td style="' + statusClass + '">' + item.similarity + '%</td>';
 				html += '<td>' + item.new_link + '</td>';
-				html += '<td>' + statusText + '</td>';
+				html += '<td>';
+				html += statusText;
+				// 为未匹配的行添加手动匹配按钮
+				if (!item.post_id) {
+					html += ' <button type="button" class="button button-small zibi-manual-match-btn" data-index="' + list.indexOf(item) + '">手动匹配</button>';
+				}
+				html += '</td>';
 				html += '</tr>';
 			});
 			$('#zibi-import-tbody').html(html);
@@ -171,15 +181,66 @@ function zibi_blc_import_page() {
 			}
 		}
 
+		// 手动匹配功能
+		$(document).on('click', '.zibi-manual-match-btn', function() {
+			var index = $(this).data('index');
+			var item = previewData[index];
+			
+			var keyword = prompt('请输入搜索关键词（文章标题）:', item.csv_title);
+			if (!keyword) return;
+
+			$.ajax({
+				url: zibi_blc_vars.ajax_url,
+				type: 'POST',
+				data: {
+					action: 'zibi_blc_search_posts',
+					keyword: keyword,
+					nonce: zibi_blc_vars.nonce
+				},
+				success: function(response) {
+					if (response.success && response.data.length > 0) {
+						var posts = response.data;
+						var options = '请选择匹配的文章:\n\n';
+						posts.forEach(function(post, i) {
+							options += (i + 1) + '. ' + post.title + ' (ID: ' + post.id + ')\n';
+						});
+						options += '\n输入序号 (1-' + posts.length + '):';
+						
+						var choice = prompt(options);
+						var choiceNum = parseInt(choice);
+						
+						if (choiceNum >= 1 && choiceNum <= posts.length) {
+							var selectedPost = posts[choiceNum - 1];
+							
+							// 更新 previewData
+							previewData[index].post_id = selectedPost.id;
+							previewData[index].post_title = selectedPost.title;
+							previewData[index].match_level = 'manual';
+							previewData[index].similarity = 100;
+							
+							// 重新渲染表格
+							renderTable(previewData);
+							alert('已成功匹配到: ' + selectedPost.title);
+						}
+					} else {
+						alert('未找到匹配的文章，请尝试其他关键词');
+					}
+				},
+				error: function() {
+					alert('搜索失败');
+				}
+			});
+		});
+
 		// 执行导入
 		$('#zibi-btn-run-import').on('click', function() {
 			if (!confirm('确定要根据匹配结果批量更新链接吗？此操作不可撤销。')) {
 				return;
 			}
 
-			// 只提交需要更新的 (high)
+			// 只提交需要更新的 (high 和 manual)
 			var matches = previewData.filter(function(item) {
-				return item.match_level === 'high';
+				return item.match_level === 'high' || item.match_level === 'manual';
 			});
 
 			if (matches.length === 0) {
