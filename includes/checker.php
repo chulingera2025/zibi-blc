@@ -213,10 +213,27 @@ function zibi_blc_preview_import() {
 		$post_map[$pid] = get_the_title( $pid );
 	}
 
-	// 2. 解析 CSV
-	$rows = array_map( 'str_getcsv', file( $file ) );
+	// 2. 解析 CSV (新增：自动编码检测与转换)
+	$raw_content = file_get_contents( $file );
+	
+	// 检测编码 (优先检测 GBK/GB2312，因为 Excel 导出 CSV 默认常为 ANSI)
+	$encoding = mb_detect_encoding( $raw_content, array( 'ASCII', 'UTF-8', 'GBK', 'GB2312', 'CP936' ), true );
+	
+	if ( $encoding !== 'UTF-8' ) {
+		$raw_content = mb_convert_encoding( $raw_content, 'UTF-8', $encoding );
+	}
+	
+	// 按行分割
+	$lines = preg_split( '/\r\n|\r|\n/', $raw_content );
+	$rows = array();
+	foreach ( $lines as $line ) {
+		if ( ! empty( trim( $line ) ) ) {
+			$rows[] = str_getcsv( $line );
+		}
+	}
+
 	if ( empty( $rows ) ) {
-		wp_send_json_error( 'CSV 文件为空' );
+		wp_send_json_error( 'CSV 文件为空或解析失败' );
 	}
 	
 	$header = array_shift( $rows ); // 假设第一行是表头
