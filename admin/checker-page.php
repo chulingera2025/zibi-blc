@@ -82,7 +82,7 @@ function zibi_blc_status_page() {
 				<?php if ( $query->have_posts() ) : ?>
 					<?php while ( $query->have_posts() ) : $query->the_post(); 
 						$post_id = get_the_ID();
-						$link = get_post_meta( $post_id, $meta_key, true );
+						$link = zibi_blc_get_target_link( $post_id );
 						$status = get_post_meta( $post_id, '_zibi_link_status', true );
 						$code = get_post_meta( $post_id, '_zibi_link_code', true );
 						$last_checked = get_post_meta( $post_id, '_zibi_link_last_checked', true );

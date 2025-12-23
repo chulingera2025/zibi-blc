@@ -253,9 +253,31 @@ function zibi_blc_preview_import() {
 		$best_match_id = 0;
 		$best_percent = 0;
 
+		// 预处理：移除所有特殊字符 (标点、符号、空格)，只保留字母、数字、汉字等
+		// Regex: /[^\p{L}\p{N}]/u (排除所有 非字母 非数字 的字符)
+		$clean_csv = preg_replace( '/[^\p{L}\p{N}]/u', '', $csv_title );
+		
 		foreach ( $post_map as $pid => $ptitle ) {
+			$clean_post = preg_replace( '/[^\p{L}\p{N}]/u', '', $ptitle );
+			
+			// 如果清洗后为空，则回退到原始字符串比较 (极端情况)
+			$t1 = empty( $clean_csv ) ? $csv_title : $clean_csv;
+			$t2 = empty( $clean_post ) ? $ptitle : $clean_post;
+			
 			$percent = 0;
-			similar_text( $csv_title, $ptitle, $percent );
+			
+			// 1. 计算文本相似度 (基于清洗后的字符串)
+			similar_text( $t1, $t2, $percent );
+			
+			// 2. 包含匹配优化
+			// 只有当字符串长度 > 4 时才启用
+			if ( mb_strlen( $t2 ) > 4 && mb_strlen( $t1 ) > 4 ) {
+				// 如果清洗后的标题互相包含
+				if ( mb_stripos( $t1, $t2 ) !== false || mb_stripos( $t2, $t1 ) !== false ) {
+					$percent = max( $percent, 95.0 );
+				}
+			}
+
 			if ( $percent > $best_percent ) {
 				$best_percent = $percent;
 				$best_match_id = $pid;
