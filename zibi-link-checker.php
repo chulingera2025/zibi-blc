@@ -3,7 +3,7 @@
  * Plugin Name:       Zibi Link Checker
  * Plugin URI:        https://github.com/chulingera2025/zibi-blc
  * Description:       自用专为 Zibi 主题设计的付费资源链接有效性检测插件。支持后台批量检测、自动定时巡检及前台状态展示。
- * Version:           2.7.4
+ * Version:           2.7.6
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:           chulingera2025
@@ -18,13 +18,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 定义插件常量
-define( 'ZIBI_BLC_VERSION', '2.7.4' );
+define( 'ZIBI_BLC_VERSION', '2.7.6' );
 define( 'ZIBI_BLC_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ZIBI_BLC_URL', plugin_dir_url( __FILE__ ) );
 
 // 引入必要文件
 require_once ZIBI_BLC_PATH . 'admin/settings.php';
 require_once ZIBI_BLC_PATH . 'admin/checker-page.php'; // 新增：后台检测页面
+require_once ZIBI_BLC_PATH . 'admin/import-page.php';  // 新增：CSV 导入页面
 require_once ZIBI_BLC_PATH . 'includes/zibi-adapter.php'; // 新增：Zibi 主题适配器
 require_once ZIBI_BLC_PATH . 'includes/checker.php';
 require_once ZIBI_BLC_PATH . 'includes/shortcodes.php'; // 新增：短代码逻辑

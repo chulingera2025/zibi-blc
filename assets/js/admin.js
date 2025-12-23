@@ -75,8 +75,10 @@ jQuery(document).ready(function ($) {
             }
         });
     }
+
     // 修改链接
-    $(document).on('click', '.zibi-edit-link-btn', function () {
+    $(document).on('click', '.zibi-edit-link-btn', function (e) {
+        e.preventDefault();
         var $btn = $(this);
         var postId = $btn.data('id');
         var currentLink = $btn.data('link');

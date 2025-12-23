@@ -104,6 +104,10 @@ function zibi_blc_update_target_link( $post_id, $new_link ) {
 		if ( is_array( $downloads ) ) {
 			foreach ( $downloads as $key => $item ) {
 				if ( ! empty( $item['link'] ) && strpos( $item['link'], 'pan.baidu.com' ) !== false ) {
+					// 严格检查：如果新旧链接一致（忽略两端空格），则不需要替换
+					if ( trim( $item['link'] ) === $new_link ) {
+						break; 
+					}
 					$downloads[$key]['link'] = $new_link;
 					$updated = true;
 					break; // 只替换找到的第一个百度网盘链接
@@ -116,6 +120,9 @@ function zibi_blc_update_target_link( $post_id, $new_link ) {
 			foreach ( $lines as $key => $line ) {
 				$parts = explode( '|', $line );
 				if ( ! empty( $parts[0] ) && strpos( $parts[0], 'pan.baidu.com' ) !== false ) {
+					if ( trim( $parts[0] ) === $new_link ) {
+						break;
+					}
 					$parts[0] = $new_link;
 					$lines[$key] = implode( '|', $parts );
 					$updated = true;
@@ -136,5 +143,9 @@ function zibi_blc_update_target_link( $post_id, $new_link ) {
 	}
 
 	// 2. 默认逻辑：直接更新 Meta Key
+	$old_val = get_post_meta( $post_id, $meta_key, true );
+	if ( trim( $old_val ) === $new_link ) {
+		return false; 
+	}
 	return update_post_meta( $post_id, $meta_key, $new_link );
 }

@@ -176,3 +176,156 @@ function zibi_blc_update_link() {
 	}
 }
 add_action( 'wp_ajax_zibi_blc_update_link', 'zibi_blc_update_link' );
+/**
+ * 处理导入预览 (AJAX)。
+ */
+function zibi_blc_preview_import() {
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+	if ( empty( $_FILES['csv_file'] ) ) {
+		wp_send_json_error( '未上传文件' );
+	}
+
+	$col_title = isset( $_POST['col_title'] ) ? trim( $_POST['col_title'] ) : '名称';
+	$col_link = isset( $_POST['col_link'] ) ? trim( $_POST['col_link'] ) : '分享链接';
+
+	$file = $_FILES['csv_file']['tmp_name'];
+	if ( ! is_readable( $file ) ) {
+		wp_send_json_error( '无法读取文件' );
+	}
+
+	// 1. 获取所有文章标题
+	// 注意：如果文章数非常多 (几万篇)，这里可能耗内存。
+	// 这里假设是数千篇以内。
+	$all_posts = get_posts( array(
+		'post_type' => 'post',
+		'post_status' => 'publish',
+		'numberposts' => -1,
+		'fields' => 'ids' // 只取 ID，循环里取标题
+	) );
+	
+	$post_map = array();
+	foreach ( $all_posts as $pid ) {
+		$post_map[$pid] = get_the_title( $pid );
+	}
+
+	// 2. 解析 CSV
+	$rows = array_map( 'str_getcsv', file( $file ) );
+	if ( empty( $rows ) ) {
+		wp_send_json_error( 'CSV 文件为空' );
+	}
+	
+	$header = array_shift( $rows ); // 假设第一行是表头
+	// 简单查找列索引
+	$title_idx = -1;
+	$link_idx = -1;
+
+	// 处理 BOM 头
+	if ( isset($header[0]) ) {
+		$header[0] = str_replace( "\xEF\xBB\xBF", '', $header[0] ); 
+	}
+
+	foreach ( $header as $i => $h ) {
+		$h = trim($h);
+		if ( $h === $col_title ) $title_idx = $i;
+		if ( $h === $col_link ) $link_idx = $i;
+	}
+
+	if ( $title_idx === -1 || $link_idx === -1 ) {
+		wp_send_json_error( '找不到指定的列名：' . $col_title . ' 或 ' . $col_link . '。请检查 CSV 表头。' );
+	}
+
+	$results = array();
+
+	foreach ( $rows as $row ) {
+		if ( count( $row ) <= max( $title_idx, $link_idx ) ) continue;
+
+		$csv_title = trim( $row[$title_idx] );
+		$csv_link = trim( $row[$link_idx] );
+
+		if ( empty( $csv_title ) || empty( $csv_link ) ) continue;
+
+		// 3. 匹配算法
+		$best_match_id = 0;
+		$best_percent = 0;
+
+		foreach ( $post_map as $pid => $ptitle ) {
+			$percent = 0;
+			similar_text( $csv_title, $ptitle, $percent );
+			if ( $percent > $best_percent ) {
+				$best_percent = $percent;
+				$best_match_id = $pid;
+			}
+		}
+
+		$item = array(
+			'csv_title' => $csv_title,
+			'new_link' => $csv_link,
+			'post_id' => 0,
+			'post_title' => '',
+			'similarity' => round( $best_percent, 1 ),
+			'match_level' => 'low'
+		);
+
+		if ( $best_percent >= 80 ) {
+			$item['post_id'] = $best_match_id;
+			$item['post_title'] = $post_map[$best_match_id];
+			
+			// 检查链接是否一致
+			$current_link = zibi_blc_get_target_link( $best_match_id );
+			if ( ! empty( $current_link ) && trim( $current_link ) === $csv_link ) {
+				$item['match_level'] = 'same'; // 链接相同
+			} else {
+				$item['match_level'] = 'high';
+			}
+		}
+
+		$results[] = $item;
+	}
+
+	wp_send_json_success( $results );
+}
+add_action( 'wp_ajax_zibi_blc_preview_import', 'zibi_blc_preview_import' );
+
+/**
+ * 执行批量更新 (AJAX)。
+ */
+function zibi_blc_run_import() {
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+	
+	$matches_json = isset( $_POST['matches'] ) ? stripslashes( $_POST['matches'] ) : '';
+	$matches = json_decode( $matches_json, true );
+
+	if ( empty( $matches ) || ! is_array( $matches ) ) {
+		wp_send_json_error( '数据无效' );
+	}
+
+	$updated_count = 0;
+
+	foreach ( $matches as $item ) {
+		if ( ! empty( $item['post_id'] ) && ! empty( $item['new_link'] ) ) {
+			$success = zibi_blc_update_target_link( $item['post_id'], $item['new_link'] );
+			if ( $success ) {
+				// 立即检测，状态更新
+				$check = zibi_blc_perform_check( $item['new_link'] );
+				update_post_meta( $item['post_id'], '_zibi_link_status', $check['status'] );
+				update_post_meta( $item['post_id'], '_zibi_link_code', $check['code'] );
+				update_post_meta( $item['post_id'], '_zibi_link_last_checked', time() );
+				
+				$updated_count++;
+			}
+		}
+	}
+
+	wp_send_json_success( array( 'updated_count' => $updated_count ) );
+}
+add_action( 'wp_ajax_zibi_blc_run_import', 'zibi_blc_run_import' );
