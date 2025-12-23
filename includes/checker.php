@@ -133,3 +133,46 @@ function zibi_blc_auto_check_on_publish( $post_id ) {
 	update_post_meta( $post_id, '_zibi_link_last_checked', time() );
 }
 add_action( 'save_post', 'zibi_blc_auto_check_on_publish', 999 );
+
+/**
+ * 处理链接更新请求 (AJAX)。
+ */
+function zibi_blc_update_link() {
+	// 验证 Nonce
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'zibi_blc_admin_nonce' ) ) {
+		wp_send_json_error( '安全验证失败' );
+	}
+
+	// 验证权限
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( '无权执行此操作' );
+	}
+
+	$post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
+	$new_link = isset( $_POST['new_link'] ) ? trim( $_POST['new_link'] ) : '';
+
+	if ( ! $post_id || empty( $new_link ) ) {
+		wp_send_json_error( '参数错误' );
+	}
+
+	// 更新链接
+	if ( zibi_blc_update_target_link( $post_id, $new_link ) ) {
+		// 更新成功后，立即进行一次检测
+		$result = zibi_blc_perform_check( $new_link );
+
+		update_post_meta( $post_id, '_zibi_link_status', $result['status'] );
+		update_post_meta( $post_id, '_zibi_link_code', $result['code'] );
+		update_post_meta( $post_id, '_zibi_link_last_checked', time() );
+
+		wp_send_json_success( array(
+			'message' => '链接已更新并重新检测',
+			'new_link' => $new_link,
+			'status' => $result['status'],
+			'code' => $result['code'],
+			'last_checked' => wp_date( 'Y-m-d H:i', time() )
+		) );
+	} else {
+		wp_send_json_error( '更新失败，未找到原百度网盘链接或保存出错' );
+	}
+}
+add_action( 'wp_ajax_zibi_blc_update_link', 'zibi_blc_update_link' );

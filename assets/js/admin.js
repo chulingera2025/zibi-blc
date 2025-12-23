@@ -75,4 +75,64 @@ jQuery(document).ready(function ($) {
             }
         });
     }
+    // 修改链接
+    $(document).on('click', '.zibi-edit-link-btn', function () {
+        var $btn = $(this);
+        var postId = $btn.data('id');
+        var currentLink = $btn.data('link');
+        var $row = $btn.closest('tr');
+
+        var newLink = prompt('请输入新的百度网盘链接:', currentLink);
+
+        if (newLink === null || newLink === currentLink) {
+            return; // 取消或未修改
+        }
+
+        if (!newLink) {
+            alert('链接不能为空');
+            return;
+        }
+
+        $btn.prop('disabled', true).text('更新中...');
+
+        $.ajax({
+            url: zibi_blc_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'zibi_blc_update_link',
+                post_id: postId,
+                new_link: newLink,
+                nonce: zibi_blc_vars.nonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    var data = response.data;
+                    alert('更新成功！');
+
+                    // 更新 UI
+                    $row.find('.zibi-link-text').text(data.new_link);
+                    $btn.data('link', data.new_link); // 更新按钮上的 data-link
+
+                    var color = (data.status === 'valid') ? 'green' : 'red';
+                    var icon = (data.status === 'valid') ? 'yes' : 'no';
+                    $row.find('.zibi-status-display').html('<span class="dashicons dashicons-' + icon + '" style="color:' + color + '"></span> ' + (data.status === 'valid' ? '有效' : '失效 (' + data.code + ')'));
+                    $row.find('.zibi-date-display').text(data.last_checked);
+
+                    if (data.status === 'invalid') {
+                        $row.addClass('zibi-invalid-row');
+                    } else {
+                        $row.removeClass('zibi-invalid-row');
+                    }
+                } else {
+                    alert('更新失败: ' + response.data);
+                }
+            },
+            error: function () {
+                alert('网络请求失败');
+            },
+            complete: function () {
+                $btn.prop('disabled', false).text('修改链接');
+            }
+        });
+    });
 });

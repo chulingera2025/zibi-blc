@@ -74,3 +74,67 @@ function zibi_blc_get_target_link( $post_id ) {
 	// 默认逻辑：直接读取 Meta Key
 	return get_post_meta( $post_id, $meta_key, true );
 }
+
+/**
+ * 更新目标链接 (适配 Zibi 主题)。
+ * 
+ * @param int $post_id 文章 ID。
+ * @param string $new_link 新的链接。
+ * @return bool 是否更新成功。
+ */
+function zibi_blc_update_target_link( $post_id, $new_link ) {
+	$options = get_option( 'zibi_blc_settings' );
+	$meta_key = isset( $options['zibi_link_meta_key'] ) ? $options['zibi_link_meta_key'] : '';
+
+	if ( empty( $meta_key ) ) {
+		return false;
+	}
+
+	// 1. Zibi 主题特殊适配
+	if ( $meta_key === 'posts_zibpay' ) {
+		$pay_mate = get_post_meta( $post_id, 'posts_zibpay', true );
+		if ( empty( $pay_mate ) || empty( $pay_mate['pay_download'] ) ) {
+			return false; 
+		}
+
+		$downloads = $pay_mate['pay_download'];
+		$updated = false;
+
+		// 兼容新版数组格式
+		if ( is_array( $downloads ) ) {
+			foreach ( $downloads as $key => $item ) {
+				if ( ! empty( $item['link'] ) && strpos( $item['link'], 'pan.baidu.com' ) !== false ) {
+					$downloads[$key]['link'] = $new_link;
+					$updated = true;
+					break; // 只替换找到的第一个百度网盘链接
+				}
+			}
+		} 
+		// 兼容旧版字符串格式
+		else {
+			$lines = preg_split( '/\r\n|\r|\n/', $downloads );
+			foreach ( $lines as $key => $line ) {
+				$parts = explode( '|', $line );
+				if ( ! empty( $parts[0] ) && strpos( $parts[0], 'pan.baidu.com' ) !== false ) {
+					$parts[0] = $new_link;
+					$lines[$key] = implode( '|', $parts );
+					$updated = true;
+					break;
+				}
+			}
+			if ( $updated ) {
+				$downloads = implode( "\r\n", $lines );
+			}
+		}
+
+		if ( $updated ) {
+			$pay_mate['pay_download'] = $downloads;
+			return update_post_meta( $post_id, 'posts_zibpay', $pay_mate );
+		}
+
+		return false;
+	}
+
+	// 2. 默认逻辑：直接更新 Meta Key
+	return update_post_meta( $post_id, $meta_key, $new_link );
+}
