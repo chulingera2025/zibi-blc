@@ -354,11 +354,11 @@ function zibi_blc_run_import() {
 		if ( ! empty( $item['post_id'] ) && ! empty( $item['new_link'] ) ) {
 			$success = zibi_blc_update_target_link( $item['post_id'], $item['new_link'] );
 			if ( $success ) {
-				// 立即检测，状态更新
-				$check = zibi_blc_perform_check( $item['new_link'] );
-				update_post_meta( $item['post_id'], '_zibi_link_status', $check['status'] );
-				update_post_meta( $item['post_id'], '_zibi_link_code', $check['code'] );
-				update_post_meta( $item['post_id'], '_zibi_link_last_checked', time() );
+				// 标记为待检测（不立即检测，避免超时）
+				// 定时任务会自动检测这些链接
+				delete_post_meta( $item['post_id'], '_zibi_link_status' );
+				delete_post_meta( $item['post_id'], '_zibi_link_code' );
+				delete_post_meta( $item['post_id'], '_zibi_link_last_checked' );
 				
 				$updated_count++;
 			}
