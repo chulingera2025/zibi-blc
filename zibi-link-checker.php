@@ -57,7 +57,8 @@ add_action( 'wp_enqueue_scripts', 'zibi_blc_enqueue_scripts' );
  * 加载后台脚本 (用于批量检测)。
  */
 function zibi_blc_admin_enqueue_scripts( $hook ) {
-	if ( 'toplevel_page_zibi-link-checker-status' !== $hook ) {
+	// 允许在“链接状态”页和“批量导入”页加载脚本
+	if ( strpos( $hook, 'zibi-link-checker' ) === false ) {
 		return;
 	}
 
