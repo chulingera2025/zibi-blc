@@ -63,7 +63,7 @@ function zibi_blc_category_page() {
 							<option value="">-- 请选择 --</option>
 							<?php foreach ( $categories as $cat ) : ?>
 								<option value="<?php echo esc_attr( $cat->term_id ); ?>">
-									<?php echo esc_html( $cat->name ); ?> (<?php echo $cat->count; ?> 篇)
+									<?php echo esc_html( $cat->name ); ?> (<?php echo intval( $cat->count ); ?> 篇)
 								</option>
 							<?php endforeach; ?>
 						</select>
@@ -278,6 +278,11 @@ function zibi_blc_add_to_category_ajax() {
 		wp_send_json_error( '无效的分类 ID' );
 	}
 
+	$term = get_term( $category_id, 'category' );
+	if ( ! $term || is_wp_error( $term ) ) {
+		wp_send_json_error( '分类不存在' );
+	}
+
 	$success_count = zibi_blc_add_posts_to_category( $post_ids, $category_id );
 
 	wp_send_json_success( array( 'success_count' => $success_count ) );
@@ -335,19 +340,14 @@ function zibi_blc_filter_posts_by_pay_type( $filter_type, $exclude_category = 0 
 				$cat_names[] = $cat->name;
 			}
 
-			$pay_type_label = '免费';
-			if ( $is_points && ! $is_free ) {
-				$pay_type_label = '积分购买';
-			} elseif ( $is_points && $is_free ) {
-				$pay_type_label = '免费';
-			}
+			$pay_type_label = $is_points ? '积分购买' : '免费';
 
 			$results[] = array(
 				'id'             => $post->ID,
-				'title'          => $post->post_title,
-				'edit_url'       => get_edit_post_link( $post->ID, 'raw' ),
+				'title'          => esc_html( $post->post_title ),
+				'edit_url'       => esc_url( get_edit_post_link( $post->ID, 'raw' ) ),
 				'pay_type_label' => $pay_type_label,
-				'categories'     => implode( ', ', $cat_names ) ?: '无分类',
+				'categories'     => esc_html( implode( ', ', $cat_names ) ?: '无分类' ),
 			);
 		}
 	}
