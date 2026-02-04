@@ -26,6 +26,7 @@ define( 'ZIBI_BLC_URL', plugin_dir_url( __FILE__ ) );
 require_once ZIBI_BLC_PATH . 'admin/settings.php';
 require_once ZIBI_BLC_PATH . 'admin/checker-page.php'; // 新增：后台检测页面
 require_once ZIBI_BLC_PATH . 'admin/import-page.php';  // 新增：CSV 导入页面
+require_once ZIBI_BLC_PATH . 'admin/category-page.php'; // 新增：分类管理页面
 require_once ZIBI_BLC_PATH . 'includes/zibi-adapter.php'; // 新增：Zibi 主题适配器
 require_once ZIBI_BLC_PATH . 'includes/checker.php';
 require_once ZIBI_BLC_PATH . 'includes/shortcodes.php'; // 新增：短代码逻辑
